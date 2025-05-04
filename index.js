@@ -1,3 +1,24 @@
+const express = require('express');
+const app = express();
+
+// نقطة نهاية بسيطة للحفاظ على الخدمة نشطة
+app.get('/', (req, res) => {
+    res.send('Service is alive!');
+});
+
+// الاستماع إلى المنفذ الذي يوفره Render (أو 3000 محليًا)
+app.listen(process.env.PORT || 3000, '0.0.0.0', () => {
+    console.log('Server running on port', process.env.PORT || 3000);
+});
+
+
+
+
+
+
+
+
+
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const firebase = require('firebase-admin');
 const cron = require('node-cron');
@@ -146,10 +167,11 @@ async function sendResults() {
 }
 
 // جدولة الفحص كل 30 دقيقة على مدار اليوم
-cron.schedule('0,30 * * * *', () => {
+cron.schedule('0,30 * * * *', () => { //0,30 12-22 * * *'من الساعه ١٢ الى الساعه ١٠ بالليل
     console.log('تشغيل وظيفة إرسال النتائج...');
     sendResults();
 });
+
 
 sendResults(); // تفعيل للاختبار اليدوي
 
