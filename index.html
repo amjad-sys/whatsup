@@ -1,0 +1,73 @@
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const firebase = require('firebase-admin');
+const cron = require('node-cron');
+const qrcode = require('qrcode-terminal');
+const { DateTime } = require('luxon');
+
+// تهيئة Firebase
+let serviceAccount;
+try {
+    serviceAccount = require('./serviceAccountKey.json');
+} catch (error) {
+    console.error('خطأ في تحميل serviceAccountKey.json:', error.message);
+    process.exit(1);
+}
+
+firebase.initializeApp({
+    credential: firebase.credential.cert(serviceAccount)
+});
+const db = firebase.firestore();
+
+// تهيئة WhatsApp مع حفظ الجلسة
+const client = new Client({
+    authStrategy: new LocalAuth()
+});
+
+client.on('qr', qr => {
+    console.log('امسح رمز QR:');
+    qrcode.generate(qr, { small: true });
+});
+
+client.on('ready', () => {
+    console.log('العميل جاهز!');
+});
+
+client.on('auth_failure', msg => {
+    console.error('فشل المصادقة:', msg);
+});
+
+// وظيفة إرسال النتائج
+async function sendResults() {
+    try {
+        console.log('جارٍ جلب النتائج...');
+        const twoDaysAgo = DateTime.now().minus({ days: 2 }).toFormat('yyyy-MM-dd');
+        const results = await db.collection('results')
+            .where('timestamp', '>=', twoDaysAgo)
+            .get();
+
+        const groupId = '120363317158210625@g.us'; // استبدل بمعرف المجموعة
+
+        if (results.empty) {
+            console.log('لا توجد نتائج جديدة.');
+            return;
+        }
+
+        for (const doc of results.docs) {
+            const data = doc.data();
+            const message = `عزيزي ${data.studentName}، نتيجتك: ${data.score}`;
+            await client.sendMessage(groupId, message);
+            console.log(`تم إرسال الرسالة لـ ${data.studentName}`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    } catch (error) {
+        console.error('خطأ في إرسال الرسائل:', error);
+    }
+}
+
+// جدولة الإرسال كل يومين الساعة 9 صباحًا
+cron.schedule('0 9 */2 * *', () => {
+    console.log('تشغيل وظيفة إرسال النتائج...');
+    sendResults();
+});
+
+client.initialize();
