@@ -57,7 +57,9 @@ client.on('auth_failure', msg => {
 
 client.on('disconnected', (reason) => {
     console.log('تم قطع الاتصال بـ WhatsApp:', reason);
-    client.initialize();
+    setTimeout(() => {
+        client.initialize();
+    }, 5000); // تأخير 5 ثوانٍ
 });
 
 // وظيفة إرسال النتائج
@@ -150,7 +152,7 @@ async function sendResults() {
                 console.log(`تم إرسال الرسالة لـ ${studentName}`);
             }
 
-            await new Promise(resolve => setTimeout(resolve, 5000)); // تأخير 5 ثوانٍ للاختبار المحلي
+            await new Promise(resolve => setTimeout(resolve, 300000)); // تأخير 5 دقائق // تأخير 5 ثوانٍ للاختبار المحلي
         }
 
         await db.collection('config').doc('lastCheck').set({
