@@ -11,14 +11,6 @@ app.listen(process.env.PORT || 3000, '0.0.0.0', () => {
     console.log('Server running on port', process.env.PORT || 3000);
 });
 
-
-
-
-
-
-
-
-
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const firebase = require('firebase-admin');
 const cron = require('node-cron');
@@ -54,13 +46,18 @@ client.on('qr', qr => {
 client.on('ready', () => {
     console.log('العميل جاهز!');
     const testMessage = 'رسالة اختبار من السكربت';
-    client.sendMessage('120363041675138011@g.us', testMessage) // استبدل بمعرف المجموعة الصحيح
+    client.sendMessage('120363041675138011@g.us', testMessage)
         .then(() => console.log('تم إرسال رسالة اختبار بنجاح'))
         .catch(err => console.error('خطأ في إرسال رسالة اختبار:', err));
 });
 
 client.on('auth_failure', msg => {
     console.error('فشل المصادقة:', msg);
+});
+
+client.on('disconnected', (reason) => {
+    console.log('تم قطع الاتصال بـ WhatsApp:', reason);
+    client.initialize();
 });
 
 // وظيفة إرسال النتائج
@@ -73,11 +70,10 @@ async function sendResults() {
             await new Promise(resolve => client.on('ready', resolve));
         }
 
-        // جلب آخر وقت إرسال من Firestore
         const lastCheckDoc = await db.collection('config').doc('lastCheck').get();
         let lastCheckTime = lastCheckDoc.exists
             ? lastCheckDoc.data().timestamp.toDate()
-            : new Date(Date.now() - 30 * 60 * 1000); // افتراضي: آخر 30 دقيقة
+            : new Date(Date.now() - 30 * 60 * 1000);
 
         const currentCheckTime = new Date();
         const lastCheckTimestamp = Timestamp.fromDate(lastCheckTime);
@@ -91,11 +87,18 @@ async function sendResults() {
 
         console.log('عدد النتائج:', results.size);
 
-        const groupId = '120363041675138011@g.us'; // استبدل بمعرف المجموعة الصحيح
+        const groupId = '120363041675138011@g.us';
         console.log('معرف المجموعة:', groupId);
 
         if (results.empty) {
             console.log('لا توجد نتائج جديدة.');
+            console.log('الاستعلام - lastCheckTimestamp:', lastCheckTimestamp.toDate().toISOString());
+            console.log('الاستعلام - currentCheckTime:', currentCheckTime.toISOString());
+            const allResults = await db.collection('studentResults').get();
+            console.log('جميع النتائج في studentResults:', allResults.docs.map(doc => ({
+                id: doc.id,
+                timestamp: doc.data().timestamp?.toDate()?.toISOString()
+            })));
             await db.collection('config').doc('lastCheck').set({
                 timestamp: Timestamp.fromDate(currentCheckTime)
             });
@@ -106,8 +109,7 @@ async function sendResults() {
             const data = doc.data();
             console.log('بيانات المستند:', data);
             
-            // جلب الاسم بالعربية من studentimg باستخدام studentEmail
-            let studentName = data.studentName || 'غير معروف'; // الاسم الافتراضي
+            let studentName = data.studentName || 'غير معروف';
             if (data.studentEmail) {
                 const studentDoc = await db.collection('studentimg')
                     .doc(data.studentEmail)
@@ -124,12 +126,9 @@ async function sendResults() {
             const level = data.level || 'غير محدد';
             const wrongQuestions = data.wrongQuestions || [];
 
-            // إعداد الرسالة الأساسية
             let message = `عزيزي ${studentName}، درجتك: ${score}/${total}\nالمستوى: ${level}`;
 
-            // إذا كانت هناك أسئلة خاطئة
             if (wrongQuestions.length > 0) {
-                // المحاولة الأولى: إرسال تفاصيل الأسئلة الخاطئة
                 let detailedMessage = message + `\nالأسئلة الخاطئة:\n`;
                 wrongQuestions.forEach((q, index) => {
                     detailedMessage += `${index + 1}. ${q.question || 'غير متوفر'}\n`;
@@ -141,23 +140,19 @@ async function sendResults() {
                     console.log(`تم إرسال الرسالة التفصيلية لـ ${studentName}`);
                 } catch (error) {
                     console.error(`فشل إرسال الرسالة التفصيلية لـ ${studentName}:`, error.message);
-                    
-                    // المحاولة الثانية: إرسال أرقام الأسئلة فقط
                     const wrongQuestionNumbers = wrongQuestions.map((q, index) => index + 1);
                     message += `\nالأسئلة الخاطئة: ${wrongQuestionNumbers.join('، ')}`;
                     await client.sendMessage(groupId, message);
                     console.log(`تم إرسال الرسالة مع أرقام الأسئلة لـ ${studentName}`);
                 }
             } else {
-                // إذا لم تكن هناك أسئلة خاطئة، أرسل الرسالة الأساسية
                 await client.sendMessage(groupId, message);
                 console.log(`تم إرسال الرسالة لـ ${studentName}`);
             }
 
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 5000)); // تأخير 5 ثوانٍ للاختبار المحلي
         }
 
-        // تحديث وقت آخر إرسال
         await db.collection('config').doc('lastCheck').set({
             timestamp: Timestamp.fromDate(currentCheckTime)
         });
@@ -166,13 +161,12 @@ async function sendResults() {
     }
 }
 
-// جدولة الفحص كل 30 دقيقة على مدار اليوم
-cron.schedule('0,30 * * * *', () => { //0,30 12-22 * * *'من الساعه ١٢ الى الساعه ١٠ بالليل
+// جدولة الفحص كل 3 دقائق
+cron.schedule('*/3 * * * *', () => {
     console.log('تشغيل وظيفة إرسال النتائج...');
     sendResults();
 });
 
-
-sendResults(); // تفعيل للاختبار اليدوي
+// sendResults(); // معطل للاختبار اليدوي
 
 client.initialize();
