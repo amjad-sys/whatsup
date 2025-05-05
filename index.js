@@ -164,7 +164,7 @@ async function sendResults() {
 }
 
 // جدولة الفحص كل 3 دقائق
-cron.schedule('*/3 * * * *', () => {
+cron.schedule('0,30 12-23 * * *', () => {
     console.log('تشغيل وظيفة إرسال النتائج...');
     sendResults();
 });
