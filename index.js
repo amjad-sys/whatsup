@@ -6,6 +6,10 @@ app.get('/', (req, res) => {
     res.send('Service is alive!');
 });
 
+app.use(express.json());
+const cors = require('cors');
+app.use(cors());
+
 // الاستماع إلى المنفذ الذي يوفره Render (أو 3000 محليًا)
 app.listen(process.env.PORT || 3000, '0.0.0.0', () => {
     console.log('Server running on port', process.env.PORT || 3000);
