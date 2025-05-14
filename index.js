@@ -49,6 +49,12 @@ client.on('qr', qr => {
 
 client.on('ready', () => {
     console.log('العميل جاهز!');
+    client.getChats().then(chats => {
+    const groups = chats.filter(chat => chat.isGroup);
+    groups.forEach(group => {
+        console.log(`اسم المجموعة: ${group.name}, المعرف: ${group.id._serialized}`);
+    });
+});
     const testMessage = 'رسالة اختبار من السكربت';
     client.sendMessage('120363041675138011@g.us', testMessage)
         .then(() => console.log('تم إرسال رسالة اختبار بنجاح'))
